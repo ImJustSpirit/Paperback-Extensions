@@ -1,0 +1,20 @@
+{
+  "name": "Spirit Extensions",
+  "version": "0.8.0",
+  "description": "Extensions for the Paperback app, created by JustSpirit.",
+  "type": "module",
+  "scripts": {
+    "bundle": "paperback-cli bundle",
+    "serve": "paperback-cli serve",
+    "test": "paperback-cli test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@paperback/types": "^1.0.0-alpha.91",
+    "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "@paperback/toolchain": "1.0.0-alpha.91",
+    "typescript": "^5.9.3"
+  }
+}

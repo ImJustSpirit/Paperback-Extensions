@@ -1,0 +1,40 @@
+{
+  "buildTime": "2026-06-21T23:24:30.306Z",
+  "builtWith": {
+    "toolchain": "1.0.0-alpha.91",
+    "types": "1.0.0-alpha.92"
+  },
+  "repository": {
+    "name": "Spirit Extensions",
+    "description": "Extensions for the Paperback app, created by JustSpirit."
+  },
+  "sources": [
+    {
+      "name": "Archive of Our Own",
+      "description": "Extension that pulls content from archiveofourown.org.",
+      "version": "0.8.0",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "JustSpirit"
+        }
+      ],
+      "badges": [
+        {
+          "label": "Novel",
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#990000"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        32
+      ],
+      "id": "AO3"
+    }
+  ]
+}
