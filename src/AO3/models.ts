@@ -12,25 +12,23 @@ export const AO3_LOGO = `${AO3_DOMAIN}/apple-touch-icon.png`
 // custom icon" so the work cover falls back to the logo instead.
 export const AO3_DEFAULT_USER_ICON = '/images/skins/iconsets/default/icon_user.png'
 
-// Works-search sort columns. The id is the value AO3 expects.
-export const SORT_COLUMNS = [
-  { id: 'revised_at', label: 'Date Updated' },
-  { id: '_score', label: 'Best Match' },
-  { id: 'created_at', label: 'Date Posted' },
-  { id: 'word_count', label: 'Word Count' },
-  { id: 'hits', label: 'Hits' },
-  { id: 'kudos_count', label: 'Kudos' },
-  { id: 'comments_count', label: 'Comments' },
-  { id: 'bookmarks_count', label: 'Bookmarks' },
-  { id: 'authors_to_sort_on', label: 'Author' },
-  { id: 'title_to_sort_on', label: 'Title' },
-] as const
-
 export const DEFAULT_SORT_COLUMN = 'revised_at'
 
-export const SORT_DIRECTIONS = [
-  { id: 'desc', label: 'Descending' },
-  { id: 'asc', label: 'Ascending' },
+// Options for the search bar's sort selector. The id is "<column>:<direction>";
+// direction is baked in so each entry reads naturally.
+export const SORT_OPTIONS = [
+  { id: 'revised_at:desc', label: 'Date Updated' },
+  { id: 'created_at:desc', label: 'Date Posted (newest)' },
+  { id: 'created_at:asc', label: 'Date Posted (oldest)' },
+  { id: 'kudos_count:desc', label: 'Kudos' },
+  { id: 'hits:desc', label: 'Hits' },
+  { id: 'comments_count:desc', label: 'Comments' },
+  { id: 'bookmarks_count:desc', label: 'Bookmarks' },
+  { id: 'word_count:desc', label: 'Word Count (most)' },
+  { id: 'word_count:asc', label: 'Word Count (fewest)' },
+  { id: 'title_to_sort_on:asc', label: 'Title (A–Z)' },
+  { id: 'authors_to_sort_on:asc', label: 'Author (A–Z)' },
+  { id: '_score:desc', label: 'Best Match' },
 ] as const
 
 // Filter option ids taken from the /works/search form. '' means "any".
@@ -133,6 +131,13 @@ export type WorksSearchParams = {
   characters: string[]
   relationships: string[]
   freeforms: string[]
+  excludedFandoms: string[]
+  excludedCharacters: string[]
+  excludedRelationships: string[]
+  excludedFreeforms: string[]
+  excludedRatings: string[]
+  excludedWarnings: string[]
+  excludedCategories: string[]
   rating: string
   warnings: string[]
   categories: string[]
@@ -141,8 +146,6 @@ export type WorksSearchParams = {
   singleChapter: boolean
   wordCount: string
   language: string
-  sort: string
-  direction: string
 }
 
 export interface ParsedChapter {

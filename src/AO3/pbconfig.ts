@@ -3,7 +3,7 @@ import { ContentRating, type ExtensionInfo, SourceIntents } from '@paperback/typ
 export default {
   name: 'Archive of Our Own',
   description: 'Extension that pulls content from archiveofourown.org.',
-  version: '0.8.0',
+  version: '0.9.3',
   icon: 'icon.png',
   language: 'en',
   contentRating: ContentRating.ADULT,

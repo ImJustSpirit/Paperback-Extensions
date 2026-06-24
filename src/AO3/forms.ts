@@ -12,6 +12,7 @@ import {
   type FormItemElement,
   type FormSectionElement,
   type Metadata,
+  type SearchQuery,
 } from '@paperback/types'
 import { fetchTagSuggestions } from './network'
 import {
@@ -20,24 +21,30 @@ import {
   CATEGORIES,
   COMPLETION,
   CROSSOVERS,
-  DEFAULT_SORT_COLUMN,
   LANGUAGES,
   type Option,
   RATINGS,
-  SORT_COLUMNS,
-  SORT_DIRECTIONS,
   type WorksSearchParams,
 } from './models'
 import {
   addPinnedTag,
   defaultSearchParams,
   getAdultEnabled,
+  getHomeLanguage,
   getHomeTags,
   getPinnedTags,
   removePinnedTag,
   setAdultEnabled,
+  setHomeLanguage,
   setHomeTags,
 } from './utils'
+
+// Remembers the last advanced-search filters so reopening the filter panel
+// keeps them (instead of resetting). Cleared on app restart.
+let lastAdvanced: WorksSearchParams | undefined
+
+// Ratings minus the "Any" entry, for the exclude multi-select.
+const EXCLUDABLE_RATINGS: Option[] = RATINGS.filter((r) => r.id !== '')
 
 // A sub-form that resolves a tag field via AO3's autocomplete. The user types a
 // term, taps Search, and adds matches; selections accumulate into `selected`
@@ -186,13 +193,88 @@ class PinManagerForm extends Form {
   }
 }
 
+// Sub-menu for tags to exclude. AO3's search excludes by tag name across all
+// tag types, so each picker just feeds the work's excluded-tags lists.
+class ExcludeForm extends Form {
+  constructor(private p: WorksSearchParams) {
+    super()
+  }
+
+  private row(
+    id: string,
+    title: string,
+    type: AutocompleteType,
+    arr: string[],
+  ): FormItemElement<unknown> {
+    return NavigationRow(id, {
+      title,
+      value: arr.length ? `${arr.length} selected` : 'None',
+      form: new TagPickerForm(title, type, arr, () => this.reloadForm(), true),
+    })
+  }
+
+  private multi(
+    id: string,
+    title: string,
+    options: readonly Option[],
+    current: string[],
+    set: (v: string[]) => void,
+  ): FormItemElement<unknown> {
+    return SelectRow(id, {
+      title,
+      layout: 'list',
+      value: current,
+      minItemCount: 0,
+      maxItemCount: options.length,
+      items: options.map((o) => ({ id: o.id, title: o.label })),
+      onValueChange: closureSelector(this, id, async (v: string[]) => set(v)),
+    })
+  }
+
+  override getSections(): FormSectionElement<unknown>[] {
+    const p = this.p
+    return [
+      Section(
+        {
+          id: 'exclude',
+          header: 'Exclude',
+          footer:
+            'Works matching these are hidden. Rating/Warning/Category exclusion needs at least one included fandom or tag in the search.',
+        },
+        [
+          this.row('x-fandoms', 'Fandoms', 'fandom', p.excludedFandoms),
+          this.row('x-characters', 'Characters', 'character', p.excludedCharacters),
+          this.row('x-relationships', 'Relationships', 'relationship', p.excludedRelationships),
+          this.row('x-freeforms', 'Additional Tags', 'freeform', p.excludedFreeforms),
+          this.multi('x-rating', 'Ratings', EXCLUDABLE_RATINGS, p.excludedRatings, (v) => {
+            p.excludedRatings = v
+          }),
+          this.multi('x-warnings', 'Warnings', ARCHIVE_WARNINGS, p.excludedWarnings, (v) => {
+            p.excludedWarnings = v
+          }),
+          this.multi('x-categories', 'Categories', CATEGORIES, p.excludedCategories, (v) => {
+            p.excludedCategories = v
+          }),
+        ],
+      ),
+    ]
+  }
+}
+
 // The in-app advanced filter panel for AO3 works search.
 export class AO3AdvancedSearchForm extends AdvancedSearchForm {
   private p: WorksSearchParams
 
-  constructor(initialQuery: string) {
+  constructor(query: SearchQuery<Metadata>) {
     super()
-    this.p = defaultSearchParams(initialQuery)
+    // Restore the filters from the active search (so reopening keeps them), then
+    // fall back to the last-used filters, then to fresh defaults.
+    const carried =
+      (query.metadata as { advanced?: WorksSearchParams } | undefined)?.advanced ??
+      lastAdvanced
+    this.p = carried
+      ? { ...defaultSearchParams(), ...carried }
+      : defaultSearchParams(query.title ?? '')
   }
 
   private tagRow(
@@ -272,8 +354,19 @@ export class AO3AdvancedSearchForm extends AdvancedSearchForm {
         this.tagRow('characters', 'Characters', 'character', p.characters),
         this.tagRow('relationships', 'Relationships', 'relationship', p.relationships),
         this.tagRow('freeforms', 'Additional Tags', 'freeform', p.freeforms),
+        NavigationRow('exclude', {
+          title: 'Exclude',
+          value: this.excludedCount() ? `${this.excludedCount()} selected` : 'None',
+          form: new ExcludeForm(p),
+        }),
       ]),
-      Section({ id: 'filters', header: 'Filters' }, [
+      Section(
+        {
+          id: 'filters',
+          header: 'Filters',
+          footer: 'Word count accepts e.g. 1000-5000 or >10000.',
+        },
+        [
         this.single('rating', 'Rating', RATINGS, p.rating, (v) => {
           p.rating = v
         }),
@@ -307,21 +400,24 @@ export class AO3AdvancedSearchForm extends AdvancedSearchForm {
           }),
         }),
       ]),
-      Section(
-        { id: 'sort', header: 'Sort', footer: 'Word count accepts e.g. 1000-5000 or >10000.' },
-        [
-          this.single('sort_column', 'Sort by', SORT_COLUMNS, p.sort, (v) => {
-            p.sort = v || DEFAULT_SORT_COLUMN
-          }),
-          this.single('sort_direction', 'Direction', SORT_DIRECTIONS, p.direction, (v) => {
-            p.direction = v || 'desc'
-          }),
-        ],
-      ),
     ]
   }
 
+  private excludedCount(): number {
+    const p = this.p
+    return (
+      p.excludedFandoms.length +
+      p.excludedCharacters.length +
+      p.excludedRelationships.length +
+      p.excludedFreeforms.length +
+      p.excludedRatings.length +
+      p.excludedWarnings.length +
+      p.excludedCategories.length
+    )
+  }
+
   override getSearchQueryMetadata(): Metadata {
+    lastAdvanced = this.p
     return { advanced: this.p }
   }
 }
@@ -330,6 +426,7 @@ export class AO3AdvancedSearchForm extends AdvancedSearchForm {
 export class AO3SettingsForm extends Form {
   override getSections(): FormSectionElement<unknown>[] {
     const homeTags = getHomeTags()
+    const homeLang = getHomeLanguage()
 
     return [
       Section(
@@ -337,7 +434,7 @@ export class AO3SettingsForm extends Form {
           id: 'home',
           header: 'Home',
           footer:
-            'Pick tags (fandoms, characters, ships, anything) to feature on the Discover tab. Each becomes a carousel of recently updated works.',
+            'Pick tags (fandoms, characters, ships, anything) to feature on the Discover tab. Each becomes a carousel of recently updated works. The language also pre-fills the search filter.',
         },
         [
           NavigationRow('home-tags', {
@@ -346,6 +443,17 @@ export class AO3SettingsForm extends Form {
             form: new TagPickerForm('tags', 'tag', homeTags, () => {
               setHomeTags(homeTags)
               this.reloadForm()
+            }),
+          }),
+          SelectRow('home-language', {
+            title: 'Language',
+            layout: 'list',
+            value: [homeLang],
+            minItemCount: 1,
+            maxItemCount: 1,
+            items: LANGUAGES.map((l) => ({ id: l.id, title: l.label })),
+            onValueChange: closureSelector(this, 'home-language', async (v: string[]) => {
+              setHomeLanguage(v[0] ?? '')
             }),
           }),
         ],

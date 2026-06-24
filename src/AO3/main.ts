@@ -32,7 +32,7 @@ import {
 import {
   AO3_LOGO,
   DEFAULT_HOME_TAGS,
-  SORT_COLUMNS,
+  SORT_OPTIONS,
   type WorksSearchParams,
 } from './models'
 import {
@@ -40,12 +40,16 @@ import {
   chapterUrl,
   decodeTagSectionId,
   encodeTagSectionId,
+  firstIncludeTag,
+  getHomeLanguage,
   getHomeTags,
+  parseSort,
   searchUrl,
   tagWorksUrl,
   TAG_SECTION_PREFIX,
   withViewAdult,
   workUrl,
+  worksFilterUrl,
   worksSearchUrl,
 } from './utils'
 
@@ -154,15 +158,19 @@ class AO3Extension
   ): Promise<PagedResults<SearchResultItem>> {
     const page = (metadata as PageMeta | undefined)?.page ?? 1
     const searchMeta = query.metadata as SearchMeta | undefined
-    const sort = sortingOption?.id
+    const { column, direction } = parseSort(sortingOption?.id)
 
     let url: string
     if (searchMeta?.advanced) {
-      url = worksSearchUrl(searchMeta.advanced, page)
+      // A tag-scoped filter unlocks rating/warning/category exclusion; without a
+      // tag, fall back to the plain search (which can only exclude by tag name).
+      url = firstIncludeTag(searchMeta.advanced)
+        ? worksFilterUrl(searchMeta.advanced, page, column, direction)
+        : worksSearchUrl(searchMeta.advanced, page, column, direction)
     } else if (searchMeta?.tag) {
-      url = tagWorksUrl(searchMeta.tag, page, sort)
+      url = tagWorksUrl(searchMeta.tag, page, column, direction)
     } else {
-      url = searchUrl(query.title, page, sort)
+      url = searchUrl(query.title, page, column, direction)
     }
 
     const html = await fetchHtml(url)
@@ -173,11 +181,11 @@ class AO3Extension
   }
 
   async getSortingOptions(_query: SearchQuery<Metadata>): Promise<SortingOption[]> {
-    return SORT_COLUMNS.map((c) => ({ id: c.id, label: c.label }))
+    return SORT_OPTIONS.map((o) => ({ id: o.id, label: o.label }))
   }
 
   async getAdvancedSearchForm(query: SearchQuery<Metadata>): Promise<AO3AdvancedSearchForm> {
-    return new AO3AdvancedSearchForm(query.title ?? '')
+    return new AO3AdvancedSearchForm(query)
   }
 
   // --- DiscoverSectionProviding --------------------------------------------
@@ -221,9 +229,9 @@ class AO3Extension
       return { items: [], metadata: undefined }
     }
 
-    // A user tag: show the most recently updated works for it.
+    // A user tag: most recently updated works, in the preferred home language.
     const tag = decodeTagSectionId(section.id) || section.title
-    const html = await fetchHtml(tagWorksUrl(tag, 1, 'revised_at'))
+    const html = await fetchHtml(tagWorksUrl(tag, 1, 'revised_at', 'desc', getHomeLanguage()))
     const { items } = parseSearchResults(html)
 
     const carousel: DiscoverSectionItem[] = items.map((it) => ({
