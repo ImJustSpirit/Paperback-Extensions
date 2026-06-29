@@ -180,8 +180,7 @@ export function tagWorksUrl(
   direction = 'desc',
   language?: string,
 ): string {
-  const escaped = encodeURIComponent(tag.replace(/\//g, '*s*'))
-  let url = `${AO3_DOMAIN}/tags/${escaped}/works?page=${page}` + sortParams(column, direction)
+  let url = `${AO3_DOMAIN}/tags/${escapeTagPath(tag)}/works?page=${page}` + sortParams(column, direction)
   if (language) url += `&work_search%5Blanguage_id%5D=${encodeURIComponent(language)}`
   return url
 }
@@ -326,7 +325,7 @@ export function defaultSearchParams(query = ''): WorksSearchParams {
     complete: '',
     singleChapter: false,
     wordCount: '',
-    // Pre-fill with the home language preference (Settings → Home).
+    // Pre-fill with the home language preference set in Settings.
     language: getHomeLanguage(),
   }
 }

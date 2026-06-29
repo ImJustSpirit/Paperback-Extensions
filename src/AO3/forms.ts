@@ -50,7 +50,7 @@ const EXCLUDABLE_RATINGS: Option[] = RATINGS.filter((r) => r.id !== '')
 // term, taps Search, and adds matches; selections accumulate into `selected`
 // (passed by reference from the parent form). When `enablePins` is set, tags can
 // be pinned for one-tap reuse across future searches.
-export class TagPickerForm extends Form {
+class TagPickerForm extends Form {
   private term = ''
   private results: string[] = []
 
@@ -193,8 +193,9 @@ class PinManagerForm extends Form {
   }
 }
 
-// Sub-menu for tags to exclude. AO3's search excludes by tag name across all
-// tag types, so each picker just feeds the work's excluded-tags lists.
+// Sub-menu of everything that can be excluded: tag fields (by name) plus
+// rating/warning/category multi-selects (which only apply when the search is
+// scoped to a tag; see worksFilterUrl).
 class ExcludeForm extends Form {
   constructor(private p: WorksSearchParams) {
     super()
@@ -272,9 +273,10 @@ export class AO3AdvancedSearchForm extends AdvancedSearchForm {
     const carried =
       (query.metadata as { advanced?: WorksSearchParams } | undefined)?.advanced ??
       lastAdvanced
-    this.p = carried
-      ? { ...defaultSearchParams(), ...carried }
-      : defaultSearchParams(query.title ?? '')
+    this.p = carried ? { ...defaultSearchParams(), ...carried } : defaultSearchParams()
+    // The search bar is the source of truth for the query, so always sync the
+    // "Any field" to it instead of a stale persisted value.
+    this.p.query = query.title ?? ''
   }
 
   private tagRow(
@@ -367,36 +369,47 @@ export class AO3AdvancedSearchForm extends AdvancedSearchForm {
           footer: 'Word count accepts e.g. 1000-5000 or >10000.',
         },
         [
-        this.single('rating', 'Rating', RATINGS, p.rating, (v) => {
-          p.rating = v
-        }),
-        this.multi('warnings', 'Warnings', ARCHIVE_WARNINGS, p.warnings, (v) => {
-          p.warnings = v
-        }),
-        this.multi('categories', 'Categories', CATEGORIES, p.categories, (v) => {
-          p.categories = v
-        }),
-        this.single('crossover', 'Crossovers', CROSSOVERS, p.crossover, (v) => {
-          p.crossover = v
-        }),
-        this.single('complete', 'Completion', COMPLETION, p.complete, (v) => {
-          p.complete = v
-        }),
-        ToggleRow('single_chapter', {
-          title: 'Single-chapter works only',
-          value: p.singleChapter,
-          onValueChange: closureSelector(this, 'single_chapter', async (v: boolean) => {
-            p.singleChapter = v
+          this.single('rating', 'Rating', RATINGS, p.rating, (v) => {
+            p.rating = v
           }),
-        }),
-        this.single('language', 'Language', LANGUAGES, p.language, (v) => {
-          p.language = v
-        }),
-        InputRow('wordcount', {
-          title: 'Word count',
-          value: p.wordCount,
-          onValueChange: closureSelector(this, 'wordcount', async (v: string) => {
-            p.wordCount = v
+          this.multi('warnings', 'Warnings', ARCHIVE_WARNINGS, p.warnings, (v) => {
+            p.warnings = v
+          }),
+          this.multi('categories', 'Categories', CATEGORIES, p.categories, (v) => {
+            p.categories = v
+          }),
+          this.single('crossover', 'Crossovers', CROSSOVERS, p.crossover, (v) => {
+            p.crossover = v
+          }),
+          this.single('complete', 'Completion', COMPLETION, p.complete, (v) => {
+            p.complete = v
+          }),
+          ToggleRow('single_chapter', {
+            title: 'Single-chapter works only',
+            value: p.singleChapter,
+            onValueChange: closureSelector(this, 'single_chapter', async (v: boolean) => {
+              p.singleChapter = v
+            }),
+          }),
+          this.single('language', 'Language', LANGUAGES, p.language, (v) => {
+            p.language = v
+          }),
+          InputRow('wordcount', {
+            title: 'Word count',
+            value: p.wordCount,
+            onValueChange: closureSelector(this, 'wordcount', async (v: string) => {
+              p.wordCount = v
+            }),
+          }),
+        ],
+      ),
+      Section({ id: 'reset' }, [
+        ButtonRow('reset', {
+          title: 'Reset filters',
+          onSelect: closureSelector(this, 'reset', async () => {
+            lastAdvanced = undefined
+            this.p = defaultSearchParams(this.p.query)
+            this.reloadForm()
           }),
         }),
       ]),

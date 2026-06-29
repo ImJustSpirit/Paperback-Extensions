@@ -28,7 +28,7 @@ function tagList($: CheerioAPI, selector: string): string[] {
 
 // Flattens a "userstuff" block to plain text for the synopsis field, turning
 // <br> and block elements into line breaks.
-function userstuffToText($: CheerioAPI, node: ReturnType<CheerioAPI>): string {
+function userstuffToText(node: ReturnType<CheerioAPI>): string {
   if (!node || node.length === 0) return ''
   const clone = load(`<div>${node.html() ?? ''}</div>`)('div')
   clone.find('br').replaceWith('\n')
@@ -106,7 +106,7 @@ export function parseWorkDetails(workId: string, html: string): SourceManga {
   // returning raw HTML would show the tags literally.
   let summaryNode = $('.preface .summary blockquote.userstuff').first()
   if (!summaryNode.length) summaryNode = $('.summary blockquote.userstuff').first()
-  const summary = userstuffToText($, summaryNode)
+  const summary = userstuffToText(summaryNode)
 
   const ratingText = $(`${meta} dd.rating.tags a.tag`).first().text().trim()
   const fandoms = tagList($, `${meta} dd.fandom.tags a.tag`)
@@ -129,13 +129,42 @@ export function parseWorkDetails(workId: string, html: string): SourceManga {
     { id: 'warning', title: 'Warnings', tags: toTags('warn', warnings) },
   ].filter((g) => g.tags.length > 0)
 
+  // AO3's stats are key for picking a fic, but Paperback doesn't render
+  // mangaInfo.additionalInfo, so fold them into the top of the synopsis (which
+  // always shows) followed by the work's actual summary.
+  const stat = (cls: string) => $(`${meta} dd.stats dd.${cls}`).first().text().trim()
+  const series = $(`${meta} dd.series span.position`)
+    .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
+    .get()
+    .join('; ')
+  const language = $(`${meta} dd.language`).first().text().trim()
+  const part = (value: string, label: string) => (value ? `${value} ${label}` : '')
+  const lines = [
+    [part(stat('words'), 'words'), part(chaptersStat, 'chapters'), language]
+      .filter(Boolean)
+      .join(' · '),
+    [
+      part(stat('kudos'), 'kudos'),
+      part(stat('hits'), 'hits'),
+      part(stat('comments'), 'comments'),
+      part(stat('bookmarks'), 'bookmarks'),
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    [stat('published') && `Published ${stat('published')}`, stat('status') && `Updated ${stat('status')}`]
+      .filter(Boolean)
+      .join(' · '),
+    series,
+  ].filter(Boolean)
+  const synopsis = [lines.join('\n'), summary].filter(Boolean).join('\n\n')
+
   return {
     mangaId: workId,
     mangaInfo: {
       primaryTitle,
       secondaryTitles: [],
       author,
-      synopsis: summary,
+      synopsis,
       thumbnailUrl: AO3_LOGO, // AO3 works have no cover art
       status,
       contentType: 'novel',
@@ -173,7 +202,7 @@ export function isGatePage(html: string): boolean {
 
 // --- Chapter list (from /works/:id/navigate) --------------------------------
 
-export function parseChapterList(workId: string, html: string): ParsedChapter[] {
+export function parseChapterList(html: string): ParsedChapter[] {
   const $ = load(html)
   const out: ParsedChapter[] = []
 
@@ -231,9 +260,24 @@ export function parseChapterHtml(html: string): string {
     return chapterDocument('<p><em>Could not load chapter content.</em></p>')
   }
 
+  // Wrap the author's chapter summary / notes around the chapter text so readers
+  // get the same context AO3 shows (these often carry content warnings).
+  const block = (label: string, selector: string) => {
+    const content = $(selector).first().html()
+    return content ? `<h3>${label}</h3><blockquote>${content}</blockquote>` : ''
+  }
+  const summary = block('Summary', '#chapters .summary.module blockquote.userstuff')
+  const startNotes = block('Notes', '#chapters .notes.module:not(.end) blockquote.userstuff')
+  const endNotes = block('Notes', '#chapters .end.notes.module blockquote.userstuff')
+
+  const parts = [summary, startNotes]
+  if (summary || startNotes) parts.push('<hr />')
+  parts.push(inner)
+  if (endNotes) parts.push('<hr />', endNotes)
+
   // Make the markup XML-safe (self-closed void tags + numeric entities) and
   // place it directly in the document body so paragraphs render with spacing.
-  return chapterDocument(toXmlEntities(selfCloseVoid(inner)))
+  return chapterDocument(toXmlEntities(selfCloseVoid(parts.join(''))))
 }
 
 // --- Search / browse results ------------------------------------------------

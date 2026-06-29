@@ -85,7 +85,7 @@ class AO3Extension
     // the full work metadata inline with view_adult honoured, so resolve the
     // first chapter from the (ungated) navigate page and read metadata there.
     const nav = await fetchNavigate(mangaId)
-    const first = parseChapterList(mangaId, nav)[0]
+    const first = parseChapterList(nav)[0]
     const url =
       first && first.chapterId !== 'full'
         ? withViewAdult(chapterUrl(mangaId, first.chapterId))
@@ -118,7 +118,7 @@ class AO3Extension
   // --- ChapterProviding -----------------------------------------------------
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
     const html = await fetchNavigate(sourceManga.mangaId)
-    const parsed = parseChapterList(sourceManga.mangaId, html)
+    const parsed = parseChapterList(html)
 
     return parsed.map((p) => ({
       chapterId: p.chapterId,
